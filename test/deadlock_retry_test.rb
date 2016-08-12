@@ -7,7 +7,7 @@ require 'active_record/version'
 puts "Testing ActiveRecord #{ActiveRecord::VERSION::STRING}"
 
 require 'test/unit'
-require 'mocha'
+require 'mocha/test_unit'
 require 'logger'
 require "deadlock_retry"
 

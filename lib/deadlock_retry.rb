@@ -61,7 +61,7 @@ module DeadlockRetry
     end
 
     def show_innodb_status
-       self.connection.select_value(DeadlockRetry.innodb_status_cmd)
+      self.connection.select_one(DeadlockRetry.innodb_status_cmd)['Status']
     end
 
     # Should we try to log innodb status -- if we don't have permission to,
@@ -69,7 +69,7 @@ module DeadlockRetry
     def check_innodb_status_available
       return unless DeadlockRetry.innodb_status_cmd == nil
 
-      if self.connection.adapter_name == "MySQL"
+      if self.connection.adapter_name.downcase.include?('mysql')
         begin
           mysql_version = self.connection.select_rows('show variables like \'version\'')[0][1]
           cmd = if mysql_version < '5.5'

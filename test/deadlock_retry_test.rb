@@ -33,12 +33,12 @@ class MockModel
     @logger ||= Logger.new(nil)
   end
 
-  def self.show_innodb_status
-    []
+  def self.select_one(sql)
+    {'Type' => '', 'Name' => '', 'Status' => 'INNODB STATUS INFO'}
   end
 
   def self.select_rows(sql)
-    [['version', '5.1.45']]
+    [['version', '5.5']]
   end
 
   def self.select_value(sql)
@@ -46,10 +46,24 @@ class MockModel
   end
 
   def self.adapter_name
-    "MySQL"
+    "Mysql2"
   end
 
   include DeadlockRetry
+end
+
+class MockModelOldMySQL < MockModel
+  def self.select_one(sql)
+    {'Status' => 'OLD INNODB STATUS INFO'}
+  end
+
+  def self.select_rows(sql)
+    [['version', '5.1.45']]
+  end
+
+  def self.adapter_name
+    "MySQL"
+  end
 end
 
 class DeadlockRetryTest < Test::Unit::TestCase
@@ -95,9 +109,32 @@ class DeadlockRetryTest < Test::Unit::TestCase
   def test_innodb_status_availability
     DeadlockRetry.innodb_status_cmd = nil
     MockModel.transaction {}
+    assert_equal "show engine innodb status", DeadlockRetry.innodb_status_cmd
+  end
+
+  def test_innodb_status_availability_for_old_mysql
+    DeadlockRetry.innodb_status_cmd = nil
+    MockModelOldMySQL.transaction {}
     assert_equal "show innodb status", DeadlockRetry.innodb_status_cmd
   end
 
+  def test_show_innodb_status
+    seq = sequence('logging')
+    MockModel.logger.expects(:warn).in_sequence(seq).with("INNODB Status follows:")
+    MockModel.logger.expects(:warn).in_sequence(seq).with("INNODB STATUS INFO")
+
+    errors = [DEADLOCK_ERROR]
+    MockModel.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
+  end
+
+  def test_show_innodb_status_for_old_mysql
+    seq = sequence('logging')
+    MockModelOldMySQL.logger.expects(:warn).in_sequence(seq).with("INNODB Status follows:")
+    MockModelOldMySQL.logger.expects(:warn).in_sequence(seq).with("OLD INNODB STATUS INFO")
+
+    errors = [DEADLOCK_ERROR]
+    MockModelOldMySQL.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
+  end
 
   def test_error_in_nested_transaction_should_retry_outermost_transaction
     tries = 0

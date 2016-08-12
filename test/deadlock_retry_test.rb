@@ -34,7 +34,7 @@ class MockModel
   end
 
   def self.select_one(sql)
-  {'Type' => '', 'Name' => '', 'Status' => 'INNODB STATUS INFO'}
+    {'Type' => '', 'Name' => '', 'Status' => 'INNODB STATUS INFO'}
   end
 
   def self.select_rows(sql)
@@ -54,7 +54,7 @@ end
 
 class MockModelOldMySQL < MockModel
   def self.select_one(sql)
-  {'Status' => 'OLD INNODB STATUS INFO'}
+    {'Status' => 'OLD INNODB STATUS INFO'}
   end
 
   def self.select_rows(sql)

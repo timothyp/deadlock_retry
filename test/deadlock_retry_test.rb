@@ -38,7 +38,7 @@ class MockModel
   end
 
   def self.select_rows(sql)
-    [['version', '5.1.45']]
+    [['version', '5.5']]
   end
 
   def self.select_value(sql)
@@ -46,10 +46,20 @@ class MockModel
   end
 
   def self.adapter_name
-    "MySQL"
+    "Mysql2"
   end
 
   include DeadlockRetry
+end
+
+class MockModelOldMySQL < MockModel
+  def self.select_rows(sql)
+    [['version', '5.1.45']]
+  end
+
+  def self.adapter_name
+    "MySQL"
+  end
 end
 
 class DeadlockRetryTest < Test::Unit::TestCase
@@ -95,6 +105,12 @@ class DeadlockRetryTest < Test::Unit::TestCase
   def test_innodb_status_availability
     DeadlockRetry.innodb_status_cmd = nil
     MockModel.transaction {}
+    assert_equal "show engine innodb status", DeadlockRetry.innodb_status_cmd
+  end
+
+  def test_innodb_status_availability_for_old_mysql
+    DeadlockRetry.innodb_status_cmd = nil
+    MockModelOldMySQL.transaction {}
     assert_equal "show innodb status", DeadlockRetry.innodb_status_cmd
   end
 

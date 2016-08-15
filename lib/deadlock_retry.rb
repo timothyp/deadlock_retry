@@ -46,12 +46,13 @@ module DeadlockRetry
 
     private
 
-    WAIT_TIMES = [0, 1, 2, 4, 8, 16, 32]
+    WAIT_TIMES = [0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2]
+    MAX_WAIT_TIME = 5
 
     def exponential_pause(count)
-      sec = WAIT_TIMES[count-1] || 32
-      # sleep 0, 1, 2, 4, ... seconds up to the MAXIMUM_RETRIES.
-      # Cap the pause time at 32 seconds.
+      sec = WAIT_TIMES[count - 1] || MAX_WAIT_TIME
+      # Sleep for a longer time each attempt.
+      # Cap the pause time at MAX_WAIT_TIME seconds.
       sleep(sec) if sec != 0
     end
 

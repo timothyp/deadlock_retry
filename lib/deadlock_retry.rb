@@ -24,13 +24,13 @@ module DeadlockRetry
 
     DeadlockRetry.maximum_retries_on_deadlock ||= DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
 
-    def transaction_with_deadlock_handling(*objects, &block)
+    def transaction(*objects, &block)
       retry_count = 0
 
       check_innodb_status_available
 
       begin
-        transaction_without_deadlock_handling(*objects, &block)
+        super
       rescue ActiveRecord::StatementInvalid => error
         raise if in_nested_transaction?
         if DEADLOCK_ERROR_MESSAGES.any? { |msg| error.message =~ /#{Regexp.escape(msg)}/ }
@@ -110,4 +110,4 @@ module DeadlockRetry
   end
 end
 
-ActiveRecord::Base.send(:include, DeadlockRetry) if defined?(ActiveRecord)
+ActiveRecord::Base.prepend(DeadlockRetry) if defined?(ActiveRecord)

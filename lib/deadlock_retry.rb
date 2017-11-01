@@ -10,6 +10,9 @@ module DeadlockRetry
     end
   end
 
+  DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK = 3
+
+  mattr_accessor :maximum_retries_on_deadlock do DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK end
   mattr_accessor :innodb_status_cmd
 
   module ClassMethods
@@ -18,9 +21,6 @@ module DeadlockRetry
       "Lock wait timeout exceeded",
       "deadlock detected"
     ]
-
-    MAXIMUM_RETRIES_ON_DEADLOCK = 3
-
 
     def transaction_with_deadlock_handling(*objects, &block)
       retry_count = 0
@@ -32,10 +32,11 @@ module DeadlockRetry
       rescue ActiveRecord::StatementInvalid => error
         raise if in_nested_transaction?
         if DEADLOCK_ERROR_MESSAGES.any? { |msg| error.message =~ /#{Regexp.escape(msg)}/ }
-          raise if retry_count > MAXIMUM_RETRIES_ON_DEADLOCK
-          retry_count += 1
-          logger.info "Deadlock detected on attempt #{retry_count}, restarting transaction. Exception: #{error.to_s}"
+          retries_exhausted = retry_count >= DeadlockRetry.maximum_retries_on_deadlock
+          logger.info "Deadlock detected on attempt #{retry_count + 1}. Max retries: #{DeadlockRetry.maximum_retries_on_deadlock}, so #{'not ' if retries_exhausted}restarting transaction. Exception: #{error.to_s}"
           log_innodb_status if DeadlockRetry.innodb_status_cmd
+          raise if retries_exhausted
+          retry_count += 1
           exponential_pause(retry_count)
           retry
         else

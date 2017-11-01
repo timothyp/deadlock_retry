@@ -91,9 +91,44 @@ class DeadlockRetryTest < Test::Unit::TestCase
   end
 
   def test_error_if_limit_exceeded
+    MockModel.expects(:log_innodb_status).times(4)
+
+    attempts = 0
     assert_raise(ActiveRecord::StatementInvalid) do
-      MockModel.transaction { raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
+      MockModel.transaction { attempts += 1; raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
     end
+
+    assert_equal 4, attempts
+  end
+
+  def test_adjusted_maximum_retries
+    DeadlockRetry.maximum_retries_on_deadlock = 5
+
+    MockModel.expects(:log_innodb_status).times(6)
+
+    attempts = 0
+    assert_raise(ActiveRecord::StatementInvalid) do
+      MockModel.transaction { attempts += 1; raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
+    end
+
+    assert_equal 6, attempts
+  ensure
+    DeadlockRetry.maximum_retries_on_deadlock = DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
+  end
+
+  def test_no_retries
+    DeadlockRetry.maximum_retries_on_deadlock = 0
+
+    MockModel.expects(:log_innodb_status).once
+
+    attempts = 0
+    assert_raise(ActiveRecord::StatementInvalid) do
+      MockModel.transaction { attempts += 1; raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
+    end
+
+    assert_equal 1, attempts
+  ensure
+    DeadlockRetry.maximum_retries_on_deadlock = DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
   end
 
   def test_error_if_unrecognized_error

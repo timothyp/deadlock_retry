@@ -155,8 +155,11 @@ class DeadlockRetryTest < Test::Unit::TestCase
 
   def test_show_innodb_status
     seq = sequence('logging')
-    MockModel.logger.expects(:warn).in_sequence(seq).with("INNODB Status follows:")
-    MockModel.logger.expects(:warn).in_sequence(seq).with("INNODB STATUS INFO")
+    deadlock_id = "1234abcd"
+    SecureRandom.expects(:hex).with(4).returns(deadlock_id)
+    MockModel.logger.expects(:info).in_sequence(seq).with(initial_log_message(DEADLOCK_ERROR))
+    MockModel.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) Status follows:")
+    MockModel.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) INNODB STATUS INFO")
 
     errors = [DEADLOCK_ERROR]
     MockModel.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
@@ -164,8 +167,11 @@ class DeadlockRetryTest < Test::Unit::TestCase
 
   def test_show_innodb_status_for_old_mysql
     seq = sequence('logging')
-    MockModelOldMySQL.logger.expects(:warn).in_sequence(seq).with("INNODB Status follows:")
-    MockModelOldMySQL.logger.expects(:warn).in_sequence(seq).with("OLD INNODB STATUS INFO")
+    deadlock_id = "7890cdef"
+    SecureRandom.expects(:hex).with(4).returns(deadlock_id)
+    MockModelOldMySQL.logger.expects(:info).in_sequence(seq).with(initial_log_message(DEADLOCK_ERROR))
+    MockModelOldMySQL.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) Status follows:")
+    MockModelOldMySQL.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) OLD INNODB STATUS INFO")
 
     errors = [DEADLOCK_ERROR]
     MockModelOldMySQL.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
@@ -187,4 +193,11 @@ class DeadlockRetryTest < Test::Unit::TestCase
 
     assert_equal 4, tries
   end
+
+  private
+
+  def initial_log_message(error)
+    "Deadlock detected on attempt 1. Max retries: 3, so restarting transaction. Exception: #{error.to_s}"
+  end
+
 end

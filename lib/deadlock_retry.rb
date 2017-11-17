@@ -91,12 +91,14 @@ module DeadlockRetry
     end
 
     def log_innodb_status
-      # show innodb status is the only way to get visiblity into why
-      # the transaction deadlocked.  log it.
+      # Showing the innodb status is the only way to get visiblity into why the
+      # transaction deadlocked.  Log it, along with a prefix including an id to
+      # enable easy extraction of the resulting status dump from the log.
       lines = show_innodb_status
-      logger.warn "INNODB Status follows:"
+      deadlock_id = SecureRandom.hex(4)
+      logger.info "(INNODB #{deadlock_id}) Status follows:"
       lines.each_line do |line|
-        logger.warn line
+        logger.info "(INNODB #{deadlock_id}) " + line
       end
     rescue => e
       # Access denied, ignore

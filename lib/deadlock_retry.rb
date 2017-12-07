@@ -12,7 +12,7 @@ module DeadlockRetry
 
   DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK = 3
 
-  mattr_accessor :maximum_retries_on_deadlock do DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK end
+  mattr_accessor :maximum_retries_on_deadlock
   mattr_accessor :innodb_status_cmd
 
   module ClassMethods
@@ -21,6 +21,8 @@ module DeadlockRetry
       "Lock wait timeout exceeded",
       "deadlock detected"
     ]
+
+    DeadlockRetry.maximum_retries_on_deadlock ||= DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
 
     def transaction_with_deadlock_handling(*objects, &block)
       retry_count = 0

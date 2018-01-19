@@ -5,7 +5,8 @@ module DeadlockRetry
     base.extend(ClassMethods)
     base.class_eval do
       class << self
-        alias_method_chain :transaction, :deadlock_handling
+        alias_method :transaction_without_deadlock_handling, :transaction
+        alias_method :transaction, :transaction_with_deadlock_handling
       end
     end
   end

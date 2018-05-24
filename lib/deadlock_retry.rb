@@ -19,7 +19,8 @@ module DeadlockRetry
     DEADLOCK_ERROR_MESSAGES = [
       "Deadlock found when trying to get lock",
       "Lock wait timeout exceeded",
-      "deadlock detected"
+      "deadlock detected",
+      "detected deadlock"
     ]
 
     DeadlockRetry.maximum_retries_on_deadlock ||= DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
@@ -31,7 +32,7 @@ module DeadlockRetry
 
       begin
         transaction_without_deadlock_handling(*objects, &block)
-      rescue ActiveRecord::StatementInvalid => error
+      rescue ActiveRecord::StatementInvalid, ActiveRecord::Deadlocked => error
         raise if in_nested_transaction?
         if DEADLOCK_ERROR_MESSAGES.any? { |msg| error.message =~ /#{Regexp.escape(msg)}/ }
           retries_exhausted = retry_count >= DeadlockRetry.maximum_retries_on_deadlock

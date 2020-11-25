@@ -1,5 +1,7 @@
 = Deadlock Retry
 
+![Tests](https://github.com/timothyp/deadlock_retry/workflows/Tests/badge.svg)
+
 Deadlock retry allows the database adapter (currently only tested with the
 MySQLAdapter) to retry transactions that fall into deadlock. It will retry
 such transactions three times before finally failing.

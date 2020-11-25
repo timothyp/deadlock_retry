@@ -6,8 +6,8 @@ require 'active_record'
 require 'active_record/version'
 puts "Testing ActiveRecord #{ActiveRecord::VERSION::STRING}"
 
-require 'test/unit'
-require 'mocha/test_unit'
+require 'minitest/autorun'
+require 'mocha/minitest'
 require 'logger'
 require "deadlock_retry"
 
@@ -66,7 +66,7 @@ class MockModelOldMySQL < MockModel
   end
 end
 
-class DeadlockRetryTest < Test::Unit::TestCase
+class DeadlockRetryTest < MiniTest::Test
   DEADLOCK_ERROR = "MySQL::Error: Deadlock found when trying to get lock"
   TIMEOUT_ERROR = "MySQL::Error: Lock wait timeout exceeded"
 
@@ -94,7 +94,7 @@ class DeadlockRetryTest < Test::Unit::TestCase
     MockModel.expects(:log_innodb_status).times(4)
 
     attempts = 0
-    assert_raise(ActiveRecord::StatementInvalid) do
+    assert_raises(ActiveRecord::StatementInvalid) do
       MockModel.transaction { attempts += 1; raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
     end
 
@@ -107,7 +107,7 @@ class DeadlockRetryTest < Test::Unit::TestCase
     MockModel.expects(:log_innodb_status).times(6)
 
     attempts = 0
-    assert_raise(ActiveRecord::StatementInvalid) do
+    assert_raises(ActiveRecord::StatementInvalid) do
       MockModel.transaction { attempts += 1; raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
     end
 
@@ -122,7 +122,7 @@ class DeadlockRetryTest < Test::Unit::TestCase
     MockModel.expects(:log_innodb_status).once
 
     attempts = 0
-    assert_raise(ActiveRecord::StatementInvalid) do
+    assert_raises(ActiveRecord::StatementInvalid) do
       MockModel.transaction { attempts += 1; raise ActiveRecord::StatementInvalid, DEADLOCK_ERROR }
     end
 
@@ -132,7 +132,7 @@ class DeadlockRetryTest < Test::Unit::TestCase
   end
 
   def test_error_if_unrecognized_error
-    assert_raise(ActiveRecord::StatementInvalid) do
+    assert_raises(ActiveRecord::StatementInvalid) do
       MockModel.transaction { raise ActiveRecord::StatementInvalid, "Something else" }
     end
   end

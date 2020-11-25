@@ -16,5 +16,5 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
   s.add_development_dependency 'rake'
   s.add_development_dependency 'mocha', '~>1.0'
-  s.add_development_dependency 'activerecord', ENV['ACTIVERECORD_VERSION'] || ' ~>4.0'
+  s.add_development_dependency 'activerecord', ENV['ACTIVERECORD_VERSION'] || ' ~>5.2'
 end

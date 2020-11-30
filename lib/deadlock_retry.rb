@@ -17,11 +17,12 @@ module DeadlockRetry
   mattr_accessor :innodb_status_cmd
 
   module ClassMethods
-    DEADLOCK_ERROR_MESSAGES = [
-      "Deadlock found when trying to get lock",
-      "Lock wait timeout exceeded",
-      "deadlock detected"
-    ]
+    DEADLOCK_ERROR_TYPES_TO_MESSAGES = {
+      deadlock: ["Deadlock found when trying to get lock", "deadlock detected"],
+      lock_wait_timeout: ["Lock wait timeout exceeded"]
+    }
+
+    DEADLOCK_ERROR_MESSAGES = DEADLOCK_ERROR_TYPES_TO_MESSAGES.values.flatten
 
     def transaction_with_deadlock_handling(*objects, &block)
       retry_count = 0
@@ -32,8 +33,10 @@ module DeadlockRetry
         transaction_without_deadlock_handling(*objects, &block)
       rescue ActiveRecord::StatementInvalid => error
         raise if in_nested_transaction?
-        if DEADLOCK_ERROR_MESSAGES.any? { |msg| error.message =~ /#{Regexp.escape(msg)}/ }
+        if error_msg = DEADLOCK_ERROR_MESSAGES.detect { |msg| error.message =~ /#{Regexp.escape(msg)}/ }
           retries_exhausted = retry_count >= DeadlockRetry.maximum_retries_on_deadlock
+          error_type = DEADLOCK_ERROR_TYPES_TO_MESSAGES.collect { |type, msgs| type if msgs.index(error_msg) }.compact.first
+          ActiveSupport::Notifications.instrument("deadlock_retry", {attempt: retry_count + 1, type: error_type, retries_exhausted: retries_exhausted})
           logger.info "Deadlock detected on attempt #{retry_count + 1}. Max retries: #{DeadlockRetry.maximum_retries_on_deadlock}, so #{'not ' if retries_exhausted}restarting transaction. Exception: #{error.to_s}"
           log_innodb_status if DeadlockRetry.innodb_status_cmd
           raise if retries_exhausted
@@ -96,7 +99,7 @@ module DeadlockRetry
       # transaction deadlocked.  Log it, along with a prefix including an id to
       # enable easy extraction of the resulting status dump from the log.
       lines = show_innodb_status
-      deadlock_id = SecureRandom.hex(4)
+      deadlock_id = random_deadlock_id()
       logger.info "(INNODB #{deadlock_id}) Status follows:"
       lines.each_line do |line|
         logger.info "(INNODB #{deadlock_id}) " + line
@@ -104,6 +107,10 @@ module DeadlockRetry
     rescue => e
       # Access denied, ignore
       logger.info "Cannot log innodb status: #{e.message}"
+    end
+
+    def random_deadlock_id
+      SecureRandom.hex(4)
     end
 
   end

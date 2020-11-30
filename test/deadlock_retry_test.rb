@@ -72,22 +72,33 @@ class DeadlockRetryTest < MiniTest::Test
 
   def setup
     MockModel.stubs(:exponential_pause)
+    @events = []
+    ActiveSupport::Notifications.subscribe('deadlock_retry') { |*args| @events << ActiveSupport::Notifications::Event.new(*args) }
   end
 
   def test_no_errors
     assert_equal :success, MockModel.transaction { :success }
+    assert_equal 0, @events.size
   end
 
   def test_no_errors_with_deadlock
     errors = [ DEADLOCK_ERROR ] * 3
     assert_equal :success, MockModel.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
     assert errors.empty?
+    assert_equal 3, @events.size
+    assert_equal({attempt: 1, type: :deadlock, retries_exhausted: false}, @events[0].payload)
+    assert_equal({attempt: 2, type: :deadlock, retries_exhausted: false}, @events[1].payload)
+    assert_equal({attempt: 3, type: :deadlock, retries_exhausted: false}, @events[2].payload)
   end
 
   def test_no_errors_with_lock_timeout
     errors = [ TIMEOUT_ERROR ] * 3
     assert_equal :success, MockModel.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
     assert errors.empty?
+    assert_equal 3, @events.size
+    assert_equal({attempt: 1, type: :lock_wait_timeout, retries_exhausted: false}, @events[0].payload)
+    assert_equal({attempt: 2, type: :lock_wait_timeout, retries_exhausted: false}, @events[1].payload)
+    assert_equal({attempt: 3, type: :lock_wait_timeout, retries_exhausted: false}, @events[2].payload)
   end
 
   def test_error_if_limit_exceeded
@@ -99,6 +110,11 @@ class DeadlockRetryTest < MiniTest::Test
     end
 
     assert_equal 4, attempts
+    assert_equal 4, @events.size
+    assert_equal({attempt: 1, type: :deadlock, retries_exhausted: false}, @events[0].payload)
+    assert_equal({attempt: 2, type: :deadlock, retries_exhausted: false}, @events[1].payload)
+    assert_equal({attempt: 3, type: :deadlock, retries_exhausted: false}, @events[2].payload)
+    assert_equal({attempt: 4, type: :deadlock, retries_exhausted: true}, @events[3].payload)
   end
 
   def test_adjusted_maximum_retries
@@ -112,6 +128,7 @@ class DeadlockRetryTest < MiniTest::Test
     end
 
     assert_equal 6, attempts
+    assert_equal 6, @events.size
   ensure
     DeadlockRetry.maximum_retries_on_deadlock = DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
   end
@@ -127,6 +144,8 @@ class DeadlockRetryTest < MiniTest::Test
     end
 
     assert_equal 1, attempts
+    assert_equal 1, @events.size
+    assert_equal({attempt: 1, type: :deadlock, retries_exhausted: true}, @events[0].payload)
   ensure
     DeadlockRetry.maximum_retries_on_deadlock = DeadlockRetry::DEFAULT_MAXIMUM_RETRIES_ON_DEADLOCK
   end
@@ -135,6 +154,7 @@ class DeadlockRetryTest < MiniTest::Test
     assert_raises(ActiveRecord::StatementInvalid) do
       MockModel.transaction { raise ActiveRecord::StatementInvalid, "Something else" }
     end
+    assert_equal 0, @events.size
   end
 
   def test_included_by_default
@@ -156,25 +176,27 @@ class DeadlockRetryTest < MiniTest::Test
   def test_show_innodb_status
     seq = sequence('logging')
     deadlock_id = "1234abcd"
-    SecureRandom.expects(:hex).with(4).returns(deadlock_id)
+    MockModel.expects(:random_deadlock_id).returns(deadlock_id)
     MockModel.logger.expects(:info).in_sequence(seq).with(initial_log_message(DEADLOCK_ERROR))
     MockModel.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) Status follows:")
     MockModel.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) INNODB STATUS INFO")
 
     errors = [DEADLOCK_ERROR]
     MockModel.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
+    assert_equal 1, @events.size
   end
 
   def test_show_innodb_status_for_old_mysql
     seq = sequence('logging')
     deadlock_id = "7890cdef"
-    SecureRandom.expects(:hex).with(4).returns(deadlock_id)
+    MockModelOldMySQL.expects(:random_deadlock_id).returns(deadlock_id)
     MockModelOldMySQL.logger.expects(:info).in_sequence(seq).with(initial_log_message(DEADLOCK_ERROR))
     MockModelOldMySQL.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) Status follows:")
     MockModelOldMySQL.logger.expects(:info).in_sequence(seq).with("(INNODB #{deadlock_id}) OLD INNODB STATUS INFO")
 
     errors = [DEADLOCK_ERROR]
     MockModelOldMySQL.transaction { raise ActiveRecord::StatementInvalid, errors.shift unless errors.empty?; :success }
+    assert_equal 1, @events.size
   end
 
   def test_error_in_nested_transaction_should_retry_outermost_transaction

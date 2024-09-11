@@ -24,13 +24,13 @@ module DeadlockRetry
 
     DEADLOCK_ERROR_MESSAGES = DEADLOCK_ERROR_TYPES_TO_MESSAGES.values.flatten
 
-    def transaction_with_deadlock_handling(*objects, &block)
+    def transaction_with_deadlock_handling(**options, &block)
       retry_count = 0
 
       check_innodb_status_available
 
       begin
-        transaction_without_deadlock_handling(*objects, &block)
+        transaction_without_deadlock_handling(**options, &block)
       rescue ActiveRecord::StatementInvalid => error
         raise if in_nested_transaction?
         if error_msg = DEADLOCK_ERROR_MESSAGES.detect { |msg| error.message =~ /#{Regexp.escape(msg)}/ }

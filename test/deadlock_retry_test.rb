@@ -1,7 +1,7 @@
 require 'rubygems'
 
 # Change the version if you want to test a different version of ActiveRecord
-gem 'activerecord', ENV['ACTIVERECORD_VERSION'] || ' ~>5.2'
+gem 'activerecord', ENV['ACTIVERECORD_VERSION'] || ' ~>6.1.0'
 require 'active_record'
 require 'active_record/version'
 puts "Testing ActiveRecord #{ActiveRecord::VERSION::STRING}"
@@ -14,7 +14,7 @@ require "deadlock_retry"
 class MockModel
   @@open_transactions = 0
 
-  def self.transaction(*objects)
+  def self.transaction(**options, &block)
     @@open_transactions += 1
     yield
   ensure
@@ -66,7 +66,7 @@ class MockModelOldMySQL < MockModel
   end
 end
 
-class DeadlockRetryTest < MiniTest::Test
+class DeadlockRetryTest < Minitest::Test
   DEADLOCK_ERROR = "MySQL::Error: Deadlock found when trying to get lock"
   TIMEOUT_ERROR = "MySQL::Error: Lock wait timeout exceeded"
 
